@@ -1,67 +1,92 @@
 import 'package:flutter/material.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class PlayerScreen extends StatefulWidget {
+  final String videoUrl;
   final String title;
-  const PlayerScreen({super.key, required this.title});
+
+  const PlayerScreen({super.key, required this.videoUrl, required this.title});
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  bool isPlaying = false;
+  late YoutubePlayerController _controller;
+  late String _videoId;
+
+  @override
+  void initState() {
+    super.initState();
+    _videoId = YoutubePlayer.convertUrlToId(widget.videoUrl) ?? '';
+    _controller = YoutubePlayerController(
+      initialVideoId: _videoId,
+      flags: const YoutubePlayerFlags(
+        autoPlay: true,
+        mute: false,
+        isLive: false,
+        forceHD: true,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(widget.title),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        title: Text(widget.title, style: const TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: double.infinity,
-              height: 300,
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Colors.red, Colors.black]),
-                borderRadius: BorderRadius.circular(20),
+      body: _videoId.isEmpty
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error, color: Colors.red, size: 50),
+                  SizedBox(height: 20),
+                  Text(
+                    'No se pudo cargar el video',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
               ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+            )
+          : YoutubePlayerBuilder(
+              player: YoutubePlayer(
+                controller: _controller,
+                showVideoProgressIndicator: true,
+                progressIndicatorColor: Colors.red,
+                onReady: () {
+                  print('Video listo');
+                },
+              ),
+              builder: (context, player) {
+                return Column(
                   children: [
-                    IconButton(
-                      icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 80, color: Colors.white),
-                      onPressed: () => setState(() => isPlaying = !isPlaying),
+                    player,
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        widget.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    Text(isPlaying ? "REPRODUCIENDO..." : "PAUSADO", style: const TextStyle(color: Colors.white70)),
                   ],
-                ),
-              ),
+                );
+              },
             ),
-            Text(widget.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(icon: const Icon(Icons.replay_10, size: 40), onPressed: () {}, color: Colors.white),
-                const SizedBox(width: 20),
-                IconButton(icon: const Icon(Icons.play_arrow, size: 50), onPressed: () {}, color: Colors.red),
-                const SizedBox(width: 20),
-                IconButton(icon: const Icon(Icons.forward_10, size: 40), onPressed: () {}, color: Colors.white),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

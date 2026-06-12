@@ -16,8 +16,15 @@ class DetailScreen extends StatelessWidget {
             expandedHeight: 350,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(movie.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              background: Image.network(movie.image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.grey)),
+              title: Text(movie.titulo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              background: Image.network(
+                movie.imagenUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey[900],
+                  child: const Center(child: Icon(Icons.broken_image, color: Colors.red, size: 50)),
+                ),
+              ),
             ),
           ),
           SliverToBoxAdapter(
@@ -31,32 +38,44 @@ class DetailScreen extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                        child: Text("⭐ ${movie.rating}", style: const TextStyle(color: Colors.white)),
+                        child: Text(movie.anio.toString(), style: const TextStyle(color: Colors.white)),
                       ),
                       const SizedBox(width: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(10)),
-                        child: Text(movie.year, style: const TextStyle(color: Colors.white70)),
+                        child: Text(movie.duracion, style: const TextStyle(color: Colors.white70)),
                       ),
                       const SizedBox(width: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(10)),
-                        child: Text(movie.genre, style: const TextStyle(color: Colors.white70)),
+                        child: Text(movie.director, style: const TextStyle(color: Colors.white70)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+                    child: Text(
+                      movie.genero,
+                      style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   const Text("SINOPSIS", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
-                  Text(movie.description, style: const TextStyle(fontSize: 16, color: Colors.white70, height: 1.5)),
+                  Text(
+                    movie.descripcion,
+                    style: const TextStyle(fontSize: 16, color: Colors.white70, height: 1.5),
+                  ),
                   const SizedBox(height: 30),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.play_arrow, size: 30),
-                      label: const Text("REPRODUCIR AHORA", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      label: const Text("VER TRAILER", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         padding: const EdgeInsets.symmetric(vertical: 15),
@@ -65,7 +84,9 @@ class DetailScreen extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => PlayerScreen(title: movie.title)),
+                          MaterialPageRoute(
+                            builder: (_) => PlayerScreen(videoUrl: movie.trailerUrl, title: movie.titulo),
+                          ),
                         );
                       },
                     ),

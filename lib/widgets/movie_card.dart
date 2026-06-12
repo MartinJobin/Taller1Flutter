@@ -27,7 +27,7 @@ class MovieCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.network(
-                movie.image,
+                movie.imagenUrl,
                 height: 200,
                 width: 160,
                 fit: BoxFit.cover,
@@ -36,14 +36,24 @@ class MovieCard extends StatelessWidget {
                     height: 200,
                     width: 160,
                     color: Colors.grey[900],
-                    child: const Icon(Icons.error, color: Colors.red),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.broken_image, color: Colors.red, size: 40),
+                        SizedBox(height: 8),
+                        Text(
+                          'Imagen no disponible',
+                          style: TextStyle(color: Colors.white70, fontSize: 10),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              movie.title,
+              movie.titulo,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -53,9 +63,17 @@ class MovieCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              movie.genre,
+              movie.genero,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 11,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              movie.anio.toString(),
+              style: const TextStyle(
+                fontSize: 11,
                 color: Colors.white70,
               ),
             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,27 +12,21 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
-  
-  bool _isLogin = true;
   bool _obscurePassword = true;
 
-  void _handleSubmit() {
-    if (_isLogin) {
+  void _login() {
+    if (_emailController.text.isNotEmpty && _passwordController.text.isNotEmpty) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('¡Cuenta creada! Inicia sesión'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('⚠️ Ingresa email y contraseña'),
+          backgroundColor: Colors.orange,
+        ),
       );
-      setState(() {
-        _isLogin = true;
-        _nameController.clear();
-        _emailController.clear();
-        _passwordController.clear();
-      });
     }
   }
 
@@ -54,41 +49,19 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const Icon(Icons.movie, size: 80, color: Colors.red),
                 const SizedBox(height: 20),
-                Text(
-                  _isLogin ? "INICIAR SESIÓN" : "CREAR CUENTA",
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                const Text(
+                  "INICIAR SESIÓN",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 const SizedBox(height: 30),
                 
-                // Campo Nombre (solo registro)
-                if (!_isLogin)
-                  TextField(
-                    controller: _nameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: "Nombre completo",
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      prefixIcon: const Icon(Icons.person, color: Colors.red),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: Colors.white38),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.red),
-                   
-                      ),
-                    ),
-                  ),
-                
-                if (!_isLogin) const SizedBox(height: 15),
-                
-                // Campo Email
+                // Email
                 TextField(
                   controller: _emailController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: "Correo electrónico",
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    labelText: "Correo electrónico",
+                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                     prefixIcon: const Icon(Icons.email, color: Colors.red),
                     enabledBorder: OutlineInputBorder(
                       borderSide: const BorderSide(color: Colors.white38),
@@ -96,21 +69,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     focusedBorder: const OutlineInputBorder(
                       borderSide: BorderSide(color: Colors.red),
-                
                     ),
                   ),
                 ),
                 
                 const SizedBox(height: 15),
                 
-                // Campo Contraseña
+                // Contraseña
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: "Contraseña",
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    labelText: "Contraseña",
+                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                     prefixIcon: const Icon(Icons.lock, color: Colors.red),
                     suffixIcon: IconButton(
                       icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: Colors.white70),
@@ -122,42 +94,44 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     focusedBorder: const OutlineInputBorder(
                       borderSide: BorderSide(color: Colors.red),
-                      
                     ),
                   ),
                 ),
                 
                 const SizedBox(height: 30),
                 
-                // Botón principal
+                // Botón Ingresar
                 ElevatedButton(
-                  onPressed: _handleSubmit,
+                  onPressed: _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    minimumSize: const Size(double.infinity, 50),
                   ),
-                  child: Text(
-                    _isLogin ? "INGRESAR" : "REGISTRARSE",
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  child: const Text(
+                    "INGRESAR",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 
                 const SizedBox(height: 20),
                 
-                // Cambiar modo
+                
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      _isLogin ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? ",
-                      style: const TextStyle(color: Colors.white70),
-                    ),
+                    const Text("¿No tienes cuenta? ", style: TextStyle(color: Colors.white70)),
                     GestureDetector(
-                      onTap: () => setState(() => _isLogin = !_isLogin),
-                      child: Text(
-                        _isLogin ? "Regístrate" : "Inicia sesión",
-                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                        );
+                      },
+                      child: const Text(
+                        "Regístrate",
+                        style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
