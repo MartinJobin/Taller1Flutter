@@ -1,33 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:video_player/video_player.dart';
 
 class PlayerScreen extends StatefulWidget {
   final String videoUrl;
   final String title;
+  final String? thumbnail;
 
-  const PlayerScreen({super.key, required this.videoUrl, required this.title});
+  const PlayerScreen({
+    super.key,
+    required this.videoUrl,
+    required this.title,
+    this.thumbnail,
+  });
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  late YoutubePlayerController _controller;
-  late String _videoId;
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _videoId = YoutubePlayer.convertUrlToId(widget.videoUrl) ?? '';
-    _controller = YoutubePlayerController(
-      initialVideoId: _videoId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-        isLive: false,
-        forceHD: true,
-      ),
-    );
+    _controller = VideoPlayerController.network(widget.videoUrl)
+      ..initialize().then((_) {
+        setState(() => _isInitialized = true);
+        _controller.play();
+      });
   }
 
   @override
@@ -43,50 +44,40 @@ class _PlayerScreenState extends State<PlayerScreen> {
         title: Text(widget.title, style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.black,
       ),
-      body: _videoId.isEmpty
-          ? const Center(
-              child: Column(
+      body: Center(
+        child: _isInitialized
+            ? AspectRatio(
+                aspectRatio: _controller.value.aspectRatio,
+                child: VideoPlayer(_controller),
+              )
+            : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error, color: Colors.red, size: 50),
-                  SizedBox(height: 20),
+                  const CircularProgressIndicator(color: Colors.red),
+                  const SizedBox(height: 20),
                   Text(
-                    'No se pudo cargar el video',
-                    style: TextStyle(color: Colors.white),
+                    'Cargando video...',
+                    style: TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
-            )
-          : YoutubePlayerBuilder(
-              player: YoutubePlayer(
-                controller: _controller,
-                showVideoProgressIndicator: true,
-                progressIndicatorColor: Colors.red,
-                onReady: () {
-                  print('Video listo');
-                },
-              ),
-              builder: (context, player) {
-                return Column(
-                  children: [
-                    player,
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        widget.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                );
+      ),
+      floatingActionButton: _isInitialized
+          ? FloatingActionButton(
+              onPressed: () {
+                setState(() {
+                  _controller.value.isPlaying
+                      ? _controller.pause()
+                      : _controller.play();
+                });
               },
-            ),
+              backgroundColor: Colors.red,
+              child: Icon(
+                _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                color: Colors.white,
+              ),
+            )
+          : null,
     );
   }
 }

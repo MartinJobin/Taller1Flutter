@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "822142000232",
+    "project_id": "cine-stream-taller2",
+    "storage_bucket": "cine-stream-taller2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:822142000232:android:d0e6fdfa6f2565904defdd",
+        "android_client_info": {
+          "package_name": "com.example.taller_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-Ib3b7Ww13MqrNK5DWiY8KtMXL5p8-XM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
