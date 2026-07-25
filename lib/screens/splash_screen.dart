@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../services/init_service.dart';
+import '../services/language_service.dart';
+
 import 'login_screen.dart';
 import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  final LanguageService languageService;
+
+  const SplashScreen({
+    super.key,
+    required this.languageService,
+  });
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -13,6 +21,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   final InitService _initService = InitService();
+
   String _statusMessage = 'Inicializando...';
   double _progress = 0.0;
 
@@ -24,7 +33,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _initializeApp() async {
     try {
-    
       setState(() {
         _statusMessage = 'Verificando autenticación...';
         _progress = 0.2;
@@ -37,17 +45,18 @@ class _SplashScreenState extends State<SplashScreen> {
         _progress = 0.5;
       });
 
-      // Verificar si ya hay datos
-      final hasData = await _initService.hasDataInFirebase();
-      
+      final bool hasData =
+          await _initService.hasDataInFirebase();
+
       if (!hasData) {
         setState(() {
-          _statusMessage = 'Cargando cartelera por primera vez...';
+          _statusMessage =
+              'Cargando cartelera por primera vez...';
           _progress = 0.7;
         });
-        
-        // Subir datos del Taller 1 a Firebase
-        await _initService.initializeFirebaseWithMovies();
+
+        await _initService
+            .initializeFirebaseWithMovies();
       }
 
       setState(() {
@@ -55,32 +64,41 @@ class _SplashScreenState extends State<SplashScreen> {
         _progress = 1.0;
       });
 
-      // Esperar 1 segundo para mostrar el mensaje de éxito
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(
+        const Duration(seconds: 1),
+      );
 
-   
+      if (!mounted) return;
+
       if (user != null) {
-        // Usuario autenticado → Home
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(
+              languageService:
+                  widget.languageService,
+            ),
+          ),
         );
       } else {
-        // Usuario NO autenticado → Login
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(
+            builder: (_) => LoginScreen(
+              languageService:
+                  widget.languageService,
+            ),
+          ),
         );
       }
-
     } catch (e) {
-      // ❌ Error
+      if (!mounted) return;
+
       setState(() {
         _statusMessage = 'Error: $e';
         _progress = 0;
       });
-      
-      // Mostrar diálogo de error
+
       _showErrorDialog(e.toString());
     }
   }
@@ -89,24 +107,38 @@ class _SplashScreenState extends State<SplashScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('❌ Error', style: TextStyle(color: Colors.white)),
-        content: Text(
-          'Error al inicializar la app:\n$error',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Reintentar
-              _initializeApp();
-            },
-            child: const Text('Reintentar', style: TextStyle(color: Colors.red)),
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor:
+              const Color(0xFF1A1A2E),
+          title: const Text(
+            '❌ Error',
+            style: TextStyle(
+              color: Colors.white,
+            ),
           ),
-        ],
-      ),
+          content: Text(
+            'Error al inicializar la app:\n$error',
+            style: const TextStyle(
+              color: Colors.white70,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _initializeApp();
+              },
+              child: const Text(
+                'Reintentar',
+                style: TextStyle(
+                  color: Colors.red,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -118,58 +150,76 @@ class _SplashScreenState extends State<SplashScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Colors.red, Colors.black],
+            colors: [
+              Colors.red,
+              Colors.black,
+            ],
           ),
         ),
         child: Center(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment:
+                MainAxisAlignment.center,
             children: [
-              // 🎬 Logo
               Container(
-                padding: const EdgeInsets.all(20),
+                padding:
+                    const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white
+                      .withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.movie_filter, size: 80, color: Colors.white),
-              ),
-              const SizedBox(height: 30),
-              
-          
-              const Text(
-                "CINESTREAM",
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
+                child: const Icon(
+                  Icons.movie_filter,
+                  size: 80,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 10),
-              
-            
+
+              const SizedBox(height: 30),
+
               const Text(
-                "Taller 2 - Firebase",
-                style: TextStyle(color: Colors.white70),
+                'CINESTREAM',
+                style: TextStyle(
+                  fontSize: 40,
+                  fontWeight:
+                      FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
+
+              const SizedBox(height: 10),
+
+              const Text(
+                'Taller 2 - Firebase',
+                style: TextStyle(
+                  color: Colors.white70,
+                ),
+              ),
+
               const SizedBox(height: 40),
-              
-          
+
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 40,
+                ),
                 child: LinearProgressIndicator(
                   value: _progress,
-                  backgroundColor: Colors.white.withOpacity(0.2),
+                  backgroundColor: Colors.white
+                      .withOpacity(0.2),
                   color: Colors.white,
                   minHeight: 8,
                 ),
               ),
+
               const SizedBox(height: 20),
-              
-           
+
               Text(
                 _statusMessage,
-                style: const TextStyle(color: Colors.white70),
+                style: const TextStyle(
+                  color: Colors.white70,
+                ),
                 textAlign: TextAlign.center,
               ),
             ],

@@ -1,94 +1,144 @@
-import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+
 import '../models/video_model.dart';
 import 'firebase_service.dart';
 
 class VideoService {
-  // REFERENCIA A LA BASE DE DATOS
-  final DatabaseReference _videosRef = FirebaseService.database.child('videos');
-  
-  // STREAM PARA ESCUCHAR CAMBIOS EN TIEMPO REAL
+  // Referencia al nodo videos en Realtime Database.
+  final DatabaseReference _videosRef =
+      FirebaseService.database.child('videos');
+
+  // Escucha los cambios en tiempo real.
   Stream<List<VideoModel>> getVideosStream() {
     return _videosRef.onValue.map((event) {
-      final Map<dynamic, dynamic>? data = event.snapshot.value as Map?;
-      
-      if (data == null) return [];
-      
-      return data.entries.map((entry) {
-        // Convertir a Map<String, dynamic> correctamente
-        final Map<String, dynamic> videoData = 
-            Map<String, dynamic>.from(entry.value as Map);
-        return VideoModel.fromJson(entry.key, videoData);
-      }).toList();
+      final Object? value = event.snapshot.value;
+
+      if (value == null || value is! Map) {
+        return <VideoModel>[];
+      }
+
+      final List<VideoModel> videos = [];
+
+      value.forEach((key, data) {
+        if (data is Map) {
+          final Map<String, dynamic> videoData =
+              Map<String, dynamic>.from(data);
+
+          videos.add(
+            VideoModel.fromJson(
+              key.toString(),
+              videoData,
+            ),
+          );
+        }
+      });
+
+      return videos;
     });
   }
 
-  // OBTENER VIDEOS UNA VEZ (FUTURE)
+  // Obtiene los videos una sola vez.
   Future<List<VideoModel>> getVideos() async {
-    final snapshot = await _videosRef.get();
-    final Map<dynamic, dynamic>? data = snapshot.value as Map?;
+    final DataSnapshot snapshot = await _videosRef.get();
+    final Object? value = snapshot.value;
 
-    if (data == null) return [];
+    if (value == null || value is! Map) {
+      return [];
+    }
 
-    return data.entries.map((entry) {
-      // Convertir Map<dynamic, dynamic> a Map<String, dynamic>
-      final Map<String, dynamic> videoData = 
-          Map<String, dynamic>.from(entry.value as Map);
-      return VideoModel.fromJson(entry.key, videoData);
-    }).toList();
+    final List<VideoModel> videos = [];
+
+    value.forEach((key, data) {
+      if (data is Map) {
+        final Map<String, dynamic> videoData =
+            Map<String, dynamic>.from(data);
+
+        videos.add(
+          VideoModel.fromJson(
+            key.toString(),
+            videoData,
+          ),
+        );
+      }
+    });
+
+    return videos;
   }
 
-  // GUARDAR VIDEO
+  // Guarda la información del video en Realtime Database.
   Future<void> saveVideo(VideoModel video) async {
     await _videosRef.child(video.id).set(video.toJson());
   }
 
-  // ELIMINAR VIDEO
+  // Elimina la información del video.
   Future<void> deleteVideo(String videoId) async {
     await _videosRef.child(videoId).remove();
   }
 
-  // SUBIR VIDEO A STORAGE (implementación completa)
-  Future<String> uploadVideo(String filePath, String fileName) async {
+  // Sube el video a Firebase Storage usando bytes.
+  Future<String> uploadVideo(
+    Uint8List fileBytes,
+    String fileName,
+  ) async {
     try {
-      final ref = FirebaseService.storage
+      final Reference storageRef = FirebaseService.storage
           .ref()
-          .child('videos/$fileName');
-      
-      // Usar file_picker para obtener el archivo
-      final file = await _getFile(filePath);
-      await ref.putFile(file);
-      final downloadUrl = await ref.getDownloadURL();
-      
-      return downloadUrl;
+          .child('videos')
+          .child(fileName);
+
+      final SettableMetadata metadata = SettableMetadata(
+        contentType: 'video/mp4',
+      );
+
+      await storageRef.putData(
+        fileBytes,
+        metadata,
+      );
+
+      return await storageRef.getDownloadURL();
+    } on FirebaseException catch (e) {
+      throw Exception(
+        'Firebase Storage no pudo subir el video: ${e.message}',
+      );
     } catch (e) {
-      print('Error subiendo video: $e');
-      throw Exception('Error al subir video: $e');
+      throw Exception(
+        'Error al subir el video: $e',
+      );
     }
   }
 
-  // SUBIR MINIATURA
-  Future<String> uploadThumbnail(String filePath, String fileName) async {
+  // Sube la miniatura a Firebase Storage usando bytes.
+  Future<String> uploadThumbnail(
+    Uint8List fileBytes,
+    String fileName,
+  ) async {
     try {
-      final ref = FirebaseService.storage
+      final Reference storageRef = FirebaseService.storage
           .ref()
-          .child('thumbnails/$fileName');
-      
-      final file = await _getFile(filePath);
-      await ref.putFile(file);
-      final downloadUrl = await ref.getDownloadURL();
-      
-      return downloadUrl;
-    } catch (e) {
-      print('Error subiendo miniatura: $e');
-      throw Exception('Error al subir miniatura: $e');
-    }
-  }
+          .child('thumbnails')
+          .child(fileName);
 
-  // FUNCIÓN AUXILIAR PARA OBTENER ARCHIVO
-  Future<dynamic> _getFile(String path) async {
-    // Usar file_picker para obtener archivos desde la UI
-    throw UnimplementedError('Usar file_picker para obtener archivos');
+      final SettableMetadata metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+      );
+
+      await storageRef.putData(
+        fileBytes,
+        metadata,
+      );
+
+      return await storageRef.getDownloadURL();
+    } on FirebaseException catch (e) {
+      throw Exception(
+        'Firebase Storage no pudo subir la miniatura: ${e.message}',
+      );
+    } catch (e) {
+      throw Exception(
+        'Error al subir la miniatura: $e',
+      );
+    }
   }
 }

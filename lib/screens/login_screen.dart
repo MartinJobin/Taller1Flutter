@@ -1,13 +1,21 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import '../services/firebase_service.dart';
+
+import '../l10n/app_localizations.dart';
 import '../models/user_model.dart';
+import '../services/firebase_service.dart';
+import '../services/language_service.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final LanguageService languageService;
+
+  const LoginScreen({
+    super.key,
+    required this.languageService,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -15,243 +23,561 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
+
   final TextEditingController _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
   bool _isLoading = false;
 
-  // ✅ INICIO DE SESIÓN CON EMAIL/PASSWORD
+  // INICIO DE SESIÓN CON CORREO Y CONTRASEÑA
   Future<void> _loginWithEmail() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      _showMessage('⚠️ Ingresa email y contraseña', Colors.orange);
+    final textos = AppLocalizations.of(context)!;
+
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage(
+        textos.enterCredentials,
+        Colors.orange,
+      );
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      UserCredential userCredential = await FirebaseService.auth.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final UserCredential userCredential =
+          await FirebaseService.auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
 
-      if (userCredential.user != null) {
-        await FirebaseService.database
-            .child('users/${userCredential.user!.uid}')
-            .set(UserModel.fromFirebase(userCredential.user!).toJson());
+      final User? user = userCredential.user;
 
-        _showMessage('✅ ¡Bienvenido!', Colors.green);
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        }
+      if (user != null) {
+        await FirebaseService.database.child('users/${user.uid}').set(
+              UserModel.fromFirebase(user).toJson(),
+            );
+
+        if (!mounted) return;
+
+        _showMessage(
+          textos.welcome,
+          Colors.green,
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(
+              languageService: widget.languageService,
+            ),
+          ),
+        );
       }
-    } on FirebaseAuthException catch (e) {
-      String message = 'Error al iniciar sesión';
-      if (e.code == 'user-not-found') {
-        message = '❌ Usuario no encontrado';
-      } else if (e.code == 'wrong-password') {
-        message = '❌ Contraseña incorrecta';
-      } else if (e.code == 'invalid-email') {
-        message = '❌ Email inválido';
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+
+      _showMessage(
+        _firebaseErrorMessage(error.code),
+        Colors.red,
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      _showMessage(
+        '${textos.unexpectedError}: $error',
+        Colors.red,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
-      _showMessage(message, Colors.red);
-    } catch (e) {
-      _showMessage('❌ Error: $e', Colors.red);
     }
-
-    if (mounted) setState(() => _isLoading = false);
   }
 
-  // ✅ INICIO DE SESIÓN CON GOOGLE (CORREGIDO)
+  // INICIO DE SESIÓN CON GOOGLE
   Future<void> _loginWithGoogle() async {
-    setState(() => _isLoading = true);
+    final textos = AppLocalizations.of(context)!;
+
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      // ✅ AGREGAR CLIENT ID PARA WEB
       final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: '822142000232-uvuveuvatgo9dmt64f2u6b7vk6ed4efs.apps.googleusercontent.com',
+        clientId:
+            '822142000232-uvuveuvatgo9dmt64f2u6b7vk6ed4efs.apps.googleusercontent.com',
       );
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
       if (googleUser == null) {
-        if (mounted) setState(() => _isLoading = false);
         return;
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
-      final credential = GoogleAuthProvider.credential(
+      final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      UserCredential userCredential = await FirebaseService.auth.signInWithCredential(credential);
+      final UserCredential userCredential =
+          await FirebaseService.auth.signInWithCredential(
+        credential,
+      );
 
-      if (userCredential.user != null) {
-        await FirebaseService.database
-            .child('users/${userCredential.user!.uid}')
-            .set(UserModel.fromFirebase(userCredential.user!).toJson());
+      final User? user = userCredential.user;
 
-        _showMessage('✅ ¡Bienvenido!', Colors.green);
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        }
+      if (user != null) {
+        await FirebaseService.database.child('users/${user.uid}').set(
+              UserModel.fromFirebase(user).toJson(),
+            );
+
+        if (!mounted) return;
+
+        _showMessage(
+          textos.welcome,
+          Colors.green,
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(
+              languageService: widget.languageService,
+            ),
+          ),
+        );
       }
-    } catch (e) {
-      _showMessage('❌ Error con Google: $e', Colors.red);
-    }
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
 
-    if (mounted) setState(() => _isLoading = false);
+      _showMessage(
+        _firebaseErrorMessage(error.code),
+        Colors.red,
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      _showMessage(
+        '${textos.googleError}: $error',
+        Colors.red,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  String _firebaseErrorMessage(String code) {
+    final textos = AppLocalizations.of(context)!;
+
+    switch (code) {
+      case 'invalid-email':
+        return textos.invalidEmail;
+
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return textos.invalidCredentials;
+
+      case 'network-request-failed':
+        return textos.networkError;
+
+      case 'too-many-requests':
+        return textos.tooManyAttempts;
+
+      case 'user-disabled':
+        return textos.userDisabled;
+
+      default:
+        return textos.unexpectedError;
+    }
   }
 
   void _showMessage(String message, Color color) {
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+      ),
+    );
+  }
+
+  // SELECTOR DE IDIOMA
+  void _showLanguageSelector() {
+    final textos = AppLocalizations.of(context)!;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF16213E),
+          title: Text(
+            textos.selectLanguage,
+            style: const TextStyle(
+              color: Colors.white,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.language,
+                  color: Colors.red,
+                ),
+                title: Text(
+                  textos.spanish,
+                  style: const TextStyle(
+                    color: Colors.white,
+                  ),
+                ),
+                trailing: widget.languageService.isSpanish
+                    ? const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                      )
+                    : null,
+                onTap: () async {
+                  Navigator.pop(dialogContext);
+
+                  await widget.languageService.cambiarIdioma('es');
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.language,
+                  color: Colors.blue,
+                ),
+                title: Text(
+                  textos.english,
+                  style: const TextStyle(
+                    color: Colors.white,
+                  ),
+                ),
+                trailing: !widget.languageService.isSpanish
+                    ? const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                      )
+                    : null,
+                onTap: () async {
+                  Navigator.pop(dialogContext);
+
+                  await widget.languageService.cambiarIdioma('en');
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final textos = AppLocalizations.of(context)!;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460)],
+            colors: [
+              Color(0xFF1A1A2E),
+              Color(0xFF16213E),
+              Color(0xFF0F3460),
+            ],
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.movie, size: 80, color: Colors.red),
-                const SizedBox(height: 20),
-                const Text(
-                  "INICIAR SESIÓN",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                const SizedBox(height: 30),
-
-                // Email
-                TextField(
-                  controller: _emailController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: "Correo electrónico",
-                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                    prefixIcon: const Icon(Icons.email, color: Colors.red),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white38),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.red),
+          child: Stack(
+            children: [
+              // BOTÓN PARA CAMBIAR IDIOMA
+              Positioned(
+                top: 5,
+                right: 5,
+                child: TextButton.icon(
+                  onPressed: _showLanguageSelector,
+                  icon: const Icon(
+                    Icons.language,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    widget.languageService.isSpanish
+                        ? textos.spanish
+                        : textos.english,
+                    style: const TextStyle(
+                      color: Colors.white,
                     ),
                   ),
                 ),
-                const SizedBox(height: 15),
+              ),
 
-                // Contraseña
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: "Contraseña",
-                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                    prefixIcon: const Icon(Icons.lock, color: Colors.red),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: Colors.white70),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 420,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white38),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.red),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 30),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.movie,
+                          size: 80,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 12),
 
-                // Botón Ingresar
-                _isLoading
-                    ? const CircularProgressIndicator(color: Colors.red)
-                    : Column(
-                        children: [
-                          ElevatedButton(
-                            onPressed: _loginWithEmail,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              minimumSize: const Size(double.infinity, 50),
+                        Text(
+                          textos.appName,
+                          style: const TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 2,
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          textos.loginSubtitle,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                          ),
+                        ),
+
+                        const SizedBox(height: 30),
+
+                        // CORREO
+                        TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          style: const TextStyle(
+                            color: Colors.white,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: textos.email,
+                            labelStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
                             ),
-                            child: const Text(
-                              "INGRESAR CON EMAIL",
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                            prefixIcon: const Icon(
+                              Icons.email,
+                              color: Colors.red,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(
+                                color: Colors.white38,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                12,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(
+                                color: Colors.red,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                12,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 15),
-                          // Botón Google
-                          ElevatedButton.icon(
-                            onPressed: _loginWithGoogle,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              minimumSize: const Size(double.infinity, 50),
+                        ),
+
+                        const SizedBox(height: 15),
+
+                        // CONTRASEÑA
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          onSubmitted: (_) {
+                            _loginWithEmail();
+                          },
+                          style: const TextStyle(
+                            color: Colors.white,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: textos.password,
+                            labelStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
                             ),
-                            icon: Image.network(
-                              'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-                              height: 24,
-                              width: 24,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(Icons.g_mobiledata, size: 24, color: Colors.black);
+                            prefixIcon: const Icon(
+                              Icons.lock,
+                              color: Colors.red,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                color: Colors.white70,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
                               },
                             ),
-                            label: const Text(
-                              "CONTINUAR CON GOOGLE",
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(
+                                color: Colors.white38,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                12,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(
+                                color: Colors.red,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                12,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                const SizedBox(height: 20),
+                        ),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("¿No tienes cuenta? ", style: TextStyle(color: Colors.white70)),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                        );
-                      },
-                      child: const Text(
-                        "Regístrate",
-                        style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                      ),
+                        const SizedBox(height: 30),
+
+                        if (_isLoading)
+                          const CircularProgressIndicator(
+                            color: Colors.red,
+                          )
+                        else
+                          Column(
+                            children: [
+                              // BOTÓN DE CORREO
+                              ElevatedButton.icon(
+                                onPressed: _loginWithEmail,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 15,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      12,
+                                    ),
+                                  ),
+                                  minimumSize: const Size(
+                                    double.infinity,
+                                    50,
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.login,
+                                  color: Colors.white,
+                                ),
+                                label: Text(
+                                  textos.loginWithEmail,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 15),
+
+                              // BOTÓN DE GOOGLE
+                              ElevatedButton.icon(
+                                onPressed: _loginWithGoogle,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 15,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      12,
+                                    ),
+                                  ),
+                                  minimumSize: const Size(
+                                    double.infinity,
+                                    50,
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.g_mobiledata,
+                                  size: 28,
+                                ),
+                                label: Text(
+                                  textos.continueWithGoogle,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                        const SizedBox(height: 20),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              textos.noAccount,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const RegisterScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                textos.register,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

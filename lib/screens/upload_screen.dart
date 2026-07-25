@@ -1,328 +1,578 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:uuid/uuid.dart';
-import '../services/video_service.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+
 import '../models/video_model.dart';
 import '../services/firebase_service.dart';
+import '../services/video_service.dart';
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
 
   @override
-  State<UploadScreen> createState() => _UploadScreenState();
+  State<UploadScreen> createState() {
+    return _UploadScreenState();
+  }
 }
 
 class _UploadScreenState extends State<UploadScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _tituloController = TextEditingController();
-  final TextEditingController _descripcionController = TextEditingController();
-  final TextEditingController _generoController = TextEditingController();
-  final TextEditingController _duracionController = TextEditingController();
-  
-  File? _videoFile;
-  File? _thumbnailFile;
-  bool _isUploading = false;
-  double _uploadProgress = 0;
-  
+  final GlobalKey<FormState> _formKey =
+      GlobalKey<FormState>();
+
+  final TextEditingController _tituloController =
+      TextEditingController();
+
+  final TextEditingController _descripcionController =
+      TextEditingController();
+
+  final TextEditingController _generoController =
+      TextEditingController();
+
+  final TextEditingController _duracionController =
+      TextEditingController();
+
+  final TextEditingController _trailerController =
+      TextEditingController();
+
+  final TextEditingController _miniaturaController =
+      TextEditingController();
+
   final VideoService _videoService = VideoService();
 
-  Future<void> _pickVideo() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.video,
-      allowMultiple: false,
-    );
-    
-    if (result != null && result.files.isNotEmpty) {
-      setState(() {
-        _videoFile = File(result.files.first.path!);
-      });
-    }
-  }
+  bool _isUploading = false;
 
-  Future<void> _pickThumbnail() async {
-    final picker = ImagePicker();
-    final result = await picker.pickImage(source: ImageSource.gallery);
-    
-    if (result != null) {
-      setState(() {
-        _thumbnailFile = File(result.path);
-      });
-    }
+  String _uploadMessage = '';
+
+  @override
+  void dispose() {
+    _tituloController.dispose();
+    _descripcionController.dispose();
+    _generoController.dispose();
+    _duracionController.dispose();
+    _trailerController.dispose();
+    _miniaturaController.dispose();
+
+    super.dispose();
   }
 
   Future<void> _uploadVideo() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_videoFile == null) {
-      _showMessage('❌ Selecciona un video', Colors.orange);
+    final bool validForm =
+        _formKey.currentState?.validate() ?? false;
+
+    if (!validForm) {
       return;
     }
-    if (_thumbnailFile == null) {
-      _showMessage('❌ Selecciona una miniatura', Colors.orange);
+
+    final String trailerUrl =
+        _trailerController.text.trim();
+
+    final String? videoId =
+        YoutubePlayerController.convertUrlToId(
+      trailerUrl,
+    );
+
+    if (videoId == null || videoId.isEmpty) {
+      _showMessage(
+        'Ingresa un enlace válido de YouTube',
+        Colors.orange,
+      );
+
+      return;
+    }
+
+    final currentUser = FirebaseService.currentUser;
+
+    if (currentUser == null) {
+      _showMessage(
+        'Debes iniciar sesión para agregar una película',
+        Colors.red,
+      );
+
       return;
     }
 
     setState(() {
       _isUploading = true;
-      _uploadProgress = 0;
+      _uploadMessage =
+          'Guardando información de la película...';
     });
 
     try {
-      final String videoId = const Uuid().v4();
-      final String userId = FirebaseService.currentUser!.uid;
-      
-      // 🔹 Subir video a Storage
-      String videoUrl = await _videoService.uploadVideo(
-        _videoFile!.path,
-        '$videoId.mp4',
-      );
-      
-      // 🔹 Subir miniatura a Storage
-      String thumbnailUrl = await _videoService.uploadThumbnail(
-        _thumbnailFile!.path,
-        '$videoId.jpg',
-      );
-      
-      // 🔹 Guardar datos en Realtime Database
-      final video = VideoModel(
-        id: videoId,
+      final databaseReference =
+          FirebaseService.database
+              .child('videos')
+              .push();
+
+      final String? generatedId =
+          databaseReference.key;
+
+      if (generatedId == null) {
+        throw Exception(
+          'No se pudo generar el identificador de la película',
+        );
+      }
+
+      final VideoModel video = VideoModel(
+        id: generatedId,
         titulo: _tituloController.text.trim(),
-        descripcion: _descripcionController.text.trim(),
-        urlStorage: videoUrl,
-        miniatura: thumbnailUrl,
-        duracion: _duracionController.text.trim(),
+        descripcion:
+            _descripcionController.text.trim(),
+        trailerUrl: trailerUrl,
+        miniatura:
+            _miniaturaController.text.trim(),
+        duracion:
+            _duracionController.text.trim(),
         genero: _generoController.text.trim(),
         fechaSubida: DateTime.now(),
-        usuarioId: userId,
+        usuarioId: currentUser.uid,
       );
-      
-      await _videoService.saveVideo(video);
-      
-      _showMessage(' ¡Video subido exitosamente!', Colors.green);
-      
-      // Limpiar formulario
-      _tituloController.clear();
-      _descripcionController.clear();
-      _generoController.clear();
-      _duracionController.clear();
-      setState(() {
-        _videoFile = null;
-        _thumbnailFile = null;
-      });
-      
-    } catch (e) {
-      _showMessage('❌ Error al subir: $e', Colors.red);
-    }
 
-    setState(() {
-      _isUploading = false;
-      _uploadProgress = 0;
-    });
+      await _videoService.saveVideo(video);
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Película agregada correctamente',
+        Colors.green,
+      );
+
+      _clearForm();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'No se pudo guardar la película: $e',
+        Colors.red,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _uploadMessage = '';
+        });
+      }
+    }
   }
 
-  void _showMessage(String message, Color color) {
+  void _clearForm() {
+    _tituloController.clear();
+    _descripcionController.clear();
+    _generoController.clear();
+    _duracionController.clear();
+    _trailerController.clear();
+    _miniaturaController.clear();
+
+    setState(() {});
+  }
+
+  void _showMessage(
+    String message,
+    Color color,
+  ) {
+    if (!mounted) {
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+      ),
     );
+  }
+
+  String? _requiredValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Este campo es obligatorio';
+    }
+
+    return null;
+  }
+
+  String? _youtubeValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'El enlace del tráiler es obligatorio';
+    }
+
+    final String? videoId =
+        YoutubePlayerController.convertUrlToId(
+      value.trim(),
+    );
+
+    if (videoId == null || videoId.isEmpty) {
+      return 'Ingresa un enlace válido de YouTube';
+    }
+
+    return null;
+  }
+
+  String? _imageUrlValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'La URL de la imagen es obligatoria';
+    }
+
+    final Uri? uri = Uri.tryParse(value.trim());
+
+    if (uri == null ||
+        !uri.hasScheme ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'http' &&
+            uri.scheme != 'https')) {
+      return 'Ingresa una URL de imagen válida';
+    }
+
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Subir Video', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Agregar película',
+          style: TextStyle(
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-          
-              TextFormField(
-                controller: _tituloController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'Título del video',
-                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  prefixIcon: const Icon(Icons.title, color: Colors.red),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Colors.white38),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
-                ),
-                validator: (value) => value!.isEmpty ? 'Campo requerido' : null,
-              ),
-              const SizedBox(height: 15),
-
-             
-              TextFormField(
-                controller: _descripcionController,
-                style: const TextStyle(color: Colors.white),
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'Descripción',
-                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  prefixIcon: const Icon(Icons.description, color: Colors.red),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Colors.white38),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
-                ),
-                validator: (value) => value!.isEmpty ? 'Campo requerido' : null,
-              ),
-              const SizedBox(height: 15),
-
-         
-              TextFormField(
-                controller: _generoController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'Género',
-                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  prefixIcon: const Icon(Icons.category, color: Colors.red),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Colors.white38),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
-                ),
-                validator: (value) => value!.isEmpty ? 'Campo requerido' : null,
-              ),
-              const SizedBox(height: 15),
-
-           
-              TextFormField(
-                controller: _duracionController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'Duración (ej: 2:30)',
-                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  prefixIcon: const Icon(Icons.timer, color: Colors.red),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Colors.white38),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
-                ),
-                validator: (value) => value!.isEmpty ? 'Campo requerido' : null,
-              ),
-              const SizedBox(height: 20),
-
-          
-              _buildFilePicker(
-                label: 'Seleccionar Video',
-                icon: Icons.video_file,
-                file: _videoFile,
-                onTap: _pickVideo,
-                color: Colors.blue,
-              ),
-              const SizedBox(height: 10),
-
-         
-              _buildFilePicker(
-                label: 'Seleccionar Miniatura',
-                icon: Icons.image,
-                file: _thumbnailFile,
-                onTap: _pickThumbnail,
-                color: Colors.green,
-              ),
-              const SizedBox(height: 30),
-
-        
-              if (_isUploading) ...[
-                LinearProgressIndicator(
-                  value: _uploadProgress,
-                  backgroundColor: Colors.grey[800],
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: 700,
+            ),
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.stretch,
+              children: [
+                const Icon(
+                  Icons.movie_creation_outlined,
+                  size: 70,
                   color: Colors.red,
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  'Subiendo... ${(_uploadProgress * 100).toInt()}%',
-                  style: const TextStyle(color: Colors.white70),
+                const Text(
+                  'Agregar una película',
                   textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-              ],
-
-         
-              ElevatedButton(
-                onPressed: _isUploading ? null : _uploadVideo,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                child: _isUploading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
+                const SizedBox(height: 8),
+                const Text(
+                  'Ingresa los datos y el enlace del tráiler oficial de YouTube',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 30),
+
+                _buildTextField(
+                  controller: _tituloController,
+                  label: 'Título',
+                  icon: Icons.title,
+                  validator: _requiredValidator,
+                ),
+                const SizedBox(height: 15),
+
+                _buildTextField(
+                  controller:
+                      _descripcionController,
+                  label: 'Descripción',
+                  icon: Icons.description,
+                  maxLines: 4,
+                  validator: _requiredValidator,
+                ),
+                const SizedBox(height: 15),
+
+                _buildTextField(
+                  controller: _generoController,
+                  label: 'Género',
+                  icon: Icons.category,
+                  validator: _requiredValidator,
+                ),
+                const SizedBox(height: 15),
+
+                _buildTextField(
+                  controller: _duracionController,
+                  label:
+                      'Duración, por ejemplo: 2 h 30 min',
+                  icon: Icons.timer,
+                  validator: _requiredValidator,
+                ),
+                const SizedBox(height: 15),
+
+                _buildTextField(
+                  controller: _trailerController,
+                  label:
+                      'Enlace del tráiler de YouTube',
+                  hint:
+                      'https://www.youtube.com/watch?v=...',
+                  icon: Icons.play_circle_outline,
+                  keyboardType: TextInputType.url,
+                  validator: _youtubeValidator,
+                ),
+                const SizedBox(height: 15),
+
+                _buildTextField(
+                  controller:
+                      _miniaturaController,
+                  label:
+                      'URL de la imagen o miniatura',
+                  hint:
+                      'https://image.tmdb.org/...',
+                  icon: Icons.image_outlined,
+                  keyboardType: TextInputType.url,
+                  validator: _imageUrlValidator,
+                  onChanged: (_) {
+                    setState(() {});
+                  },
+                ),
+
+                const SizedBox(height: 20),
+
+                _buildImagePreview(),
+
+                const SizedBox(height: 25),
+
+                if (_isUploading) ...[
+                  const LinearProgressIndicator(
+                    color: Colors.red,
+                    backgroundColor: Colors.white24,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _uploadMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                ElevatedButton.icon(
+                  onPressed: _isUploading
+                      ? null
+                      : _uploadVideo,
+                  icon: _isUploading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child:
+                              CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.save,
                           color: Colors.white,
-                          strokeWidth: 2,
                         ),
-                      )
-                    : const Text(
-                        'SUBIR VIDEO',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-              ),
-            ],
+                  label: Text(
+                    _isUploading
+                        ? 'GUARDANDO...'
+                        : 'GUARDAR PELÍCULA',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    disabledBackgroundColor:
+                        Colors.red.withOpacity(0.5),
+                    padding:
+                        const EdgeInsets.symmetric(
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFilePicker({
-    required String label,
-    required IconData icon,
-    required File? file,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
+  Widget _buildImagePreview() {
+    final String imageUrl =
+        _miniaturaController.text.trim();
+
+    if (imageUrl.isEmpty) {
+      return Container(
+        height: 220,
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.white38),
+          color: const Color(0xFF1A1A2E),
           borderRadius: BorderRadius.circular(12),
-          color: Colors.grey[900],
+          border: Border.all(
+            color: Colors.white24,
+          ),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                file != null ? file.path.split('/').last : label,
+        child: const Center(
+          child: Column(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.image_outlined,
+                color: Colors.white38,
+                size: 60,
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Aquí aparecerá la imagen',
                 style: TextStyle(
-                  color: file != null ? Colors.white : Colors.white54,
+                  color: Colors.white54,
                 ),
-                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        imageUrl,
+        height: 250,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        loadingBuilder: (
+          context,
+          child,
+          loadingProgress,
+        ) {
+          if (loadingProgress == null) {
+            return child;
+          }
+
+          return Container(
+            height: 250,
+            color: const Color(0xFF1A1A2E),
+            child: const Center(
+              child: CircularProgressIndicator(
+                color: Colors.red,
               ),
             ),
-            Icon(
-              file != null ? Icons.check_circle : Icons.cloud_upload,
-              color: file != null ? Colors.green : color,
+          );
+        },
+        errorBuilder: (
+          context,
+          error,
+          stackTrace,
+        ) {
+          return Container(
+            height: 250,
+            color: const Color(0xFF1A1A2E),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.broken_image,
+                    color: Colors.red,
+                    size: 60,
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'No se pudo cargar la imagen',
+                    style: TextStyle(
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required String? Function(String?) validator,
+    String? hint,
+    int maxLines = 1,
+    TextInputType keyboardType =
+        TextInputType.text,
+    ValueChanged<String>? onChanged,
+  }) {
+    return TextFormField(
+      controller: controller,
+      validator: validator,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
+      style: const TextStyle(
+        color: Colors.white,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: const TextStyle(
+          color: Colors.white70,
+        ),
+        hintStyle: const TextStyle(
+          color: Colors.white38,
+        ),
+        prefixIcon: Icon(
+          icon,
+          color: Colors.red,
+        ),
+        filled: true,
+        fillColor: const Color(0xFF1A1A2E),
+        enabledBorder: OutlineInputBorder(
+          borderSide: const BorderSide(
+            color: Colors.white38,
+          ),
+          borderRadius:
+              BorderRadius.circular(12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(
+            color: Colors.red,
+            width: 2,
+          ),
+          borderRadius:
+              BorderRadius.circular(12),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(
+            color: Colors.orange,
+          ),
+          borderRadius:
+              BorderRadius.circular(12),
+        ),
+        focusedErrorBorder:
+            OutlineInputBorder(
+          borderSide: const BorderSide(
+            color: Colors.orange,
+          ),
+          borderRadius:
+              BorderRadius.circular(12),
         ),
       ),
     );

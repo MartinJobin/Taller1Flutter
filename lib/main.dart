@@ -1,41 +1,85 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart';  // ← AGREGAR
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
+import 'package:flutter/material.dart';
 
-void main() async {
+import 'firebase_options.dart';
+import 'l10n/app_localizations.dart';
+import 'screens/login_screen.dart';
+import 'services/language_service.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // ✅ INICIALIZAR CON OPCIONES (IMPORTANTE PARA WEB)
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
-  runApp(const MyApp());
+
+  final LanguageService languageService = LanguageService();
+
+  await languageService.cargarIdioma();
+
+  runApp(
+    MyApp(
+      languageService: languageService,
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  final LanguageService languageService;
+
+  const MyApp({
+    super.key,
+    required this.languageService,
+  });
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+
+    widget.languageService.addListener(_actualizarIdioma);
+  }
+
+  void _actualizarIdioma() {
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.languageService.removeListener(_actualizarIdioma);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'CineStream - Taller 2',
+      title: 'CINESTREAM',
+
+      locale: widget.languageService.locale,
+
+      localizationsDelegates:
+          AppLocalizations.localizationsDelegates,
+
+      supportedLocales:
+          AppLocalizations.supportedLocales,
+
       theme: ThemeData(
         brightness: Brightness.dark,
-        primaryColor: Colors.red,
         scaffoldBackgroundColor: Colors.black,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.black,
-          elevation: 0,
-          centerTitle: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.red,
+          brightness: Brightness.dark,
         ),
       ),
-      home: const SplashScreen(),
+
+      home: LoginScreen(
+        languageService: widget.languageService,
+      ),
     );
   }
 }
